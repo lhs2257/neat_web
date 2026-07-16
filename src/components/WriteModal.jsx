@@ -26,32 +26,20 @@ function TagInput({ label, tags, input, onInput, onAdd, onRemove, onKeyDown }) {
 }
 
 function StarPicker({ rating, onChange }) {
-  const label = rating === 0 ? '별점 없음' : `${rating.toFixed(1)}점`;
+  const label = rating === 0 ? '별점 없음' : `${rating}점`;
 
   return (
     <div className="field">
       <label>별점 · {label}</label>
       <div className="starpick">
-        {[1, 2, 3, 4, 5].map(i => {
-          const fullCls = rating >= i ? 'full' : 'empty';
-          const halfCls = rating >= i - 0.5 && rating < i ? 'full' : 'empty';
-          return (
-            <span key={i} style={{ display: 'inline-flex' }}>
-              <button type="button"
-                style={{ background: 'none', border: 'none', padding: '0 1px', fontSize: 28, cursor: 'pointer',
-                  color: halfCls === 'full' || fullCls === 'full' ? 'var(--accent)' : '#5a4b3d' }}
-                onClick={() => onChange(rating === i - 0.5 ? 0 : i - 0.5)}>
-                &#9734;
-              </button>
-              <button type="button"
-                style={{ background: 'none', border: 'none', padding: '0 1px', fontSize: 28, cursor: 'pointer',
-                  color: fullCls === 'full' ? 'var(--accent)' : '#5a4b3d' }}
-                onClick={() => onChange(rating === i ? 0 : i)}>
-                &#9733;
-              </button>
-            </span>
-          );
-        })}
+        {[1, 2, 3, 4, 5].map(i => (
+          <button key={i} type="button"
+            style={{ background: 'none', border: 'none', padding: '2px', fontSize: 30, cursor: 'pointer',
+              color: rating >= i ? 'var(--accent)' : '#5a4b3d' }}
+            onClick={() => onChange(rating === i ? 0 : i)}>
+            ★
+          </button>
+        ))}
       </div>
     </div>
   );
