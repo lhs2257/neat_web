@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { SEED_NOTES, WALL_W, WALL_H, WHISKY_IMGS } from './data/seed';
-import { useLocalStorage } from './hooks/useLocalStorage';
+import { WALL_W, WALL_H, WHISKY_IMGS } from './data/seed';
+import { api } from './api';
 import Nav from './components/Nav';
 import FilterBar from './components/FilterBar';
 import NoteCard from './components/NoteCard';
@@ -9,6 +9,10 @@ import WriteModal from './components/WriteModal';
 import LoginScreen from './components/LoginScreen';
 
 const CARD_W = 260, CARD_H = 360, MARGIN = 24;
+
+function getSession() {
+  try { return JSON.parse(localStorage.getItem('neat-user') || 'null'); } catch { return null; }
+}
 
 function clamp(v, wallW, wallH) {
   return {
@@ -29,13 +33,13 @@ function findEmptySpot(existing, wallW, wallH) {
     }
     return null;
   };
-
   return tryFind(wallW, wallH)
     ?? tryFind(wallW + 800, wallH + 600)
     ?? { x: MARGIN, y: MARGIN, w: wallW + 800, h: wallH + 600 };
 }
 
 function centerPan(notes, wallW, wallH) {
+  if (!notes.length) return { x: 0, y: 0 };
   const cx = notes.reduce((a, n) => a + n.x + 118, 0) / notes.length;
   const cy = notes.reduce((a, n) => a + n.y + 180, 0) / notes.length;
   return clamp(
@@ -45,20 +49,36 @@ function centerPan(notes, wallW, wallH) {
 }
 
 export default function App() {
-  const [user, setUser]     = useLocalStorage('neat-user', null);
-  const [notes, setNotes]   = useLocalStorage('neat-notes', SEED_NOTES);
-  const [wallW, setWallW]   = useState(WALL_W);
-  const [wallH, setWallH]   = useState(WALL_H);
-  const [pan, setPan]       = useState({ x: 0, y: 0 });
-  const [tab, setTab]       = useState('feed');
-  const [filter, setFilter] = useState('전체');
-  const [query, setQuery]   = useState('');
-  const [activeId, setActiveId] = useState(null);
+  const session = getSession();
+  const [user, setUser]       = useState(session?.nickname ?? null);
+  const [notes, setNotes]     = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [wallW, setWallW]     = useState(WALL_W);
+  const [wallH, setWallH]     = useState(WALL_H);
+  const [pan, setPan]         = useState({ x: 0, y: 0 });
+  const [tab, setTab]         = useState('feed');
+  const [filter, setFilter]   = useState('전체');
+  const [query, setQuery]     = useState('');
+  const [activeId, setActiveId]   = useState(null);
   const [showWrite, setShowWrite] = useState(false);
-  const [dragging, setDragging]  = useState(false);
+  const [dragging, setDragging]   = useState(false);
   const drag = useRef({ down: false, moved: false, sx: 0, sy: 0, px: 0, py: 0 });
 
-  useEffect(() => { setPan(centerPan(notes, wallW, wallH)); }, []);
+  // 노트 불러오기
+  const loadNotes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const list = await api.getNotes();
+      setNotes(list);
+      setPan(centerPan(list, wallW, wallH));
+    } catch (err) {
+      console.error('노트 불러오기 실패:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (user) loadNotes(); }, [user]);
 
   useEffect(() => {
     const mm = (e) => {
@@ -86,53 +106,64 @@ export default function App() {
     setDragging(true);
   };
 
-  const toggleLike = useCallback((id) => {
-    setNotes(prev => prev.map(n =>
-      n.id === id ? { ...n, liked: !n.liked, likes: n.likes + (n.liked ? -1 : 1) } : n
-    ));
+  const toggleLike = useCallback(async (id) => {
+    try {
+      const result = await api.toggleLike(id);
+      setNotes(prev => prev.map(n =>
+        n.id === id ? { ...n, liked: result.liked, likes: result.likes } : n
+      ));
+    } catch (err) {
+      console.error('좋아요 실패:', err.message);
+    }
   }, []);
 
   const openNote = (id) => { if (drag.current.moved) return; setActiveId(id); };
 
-  const handleSubmit = (d) => {
+  const handleLogin = (nickname) => {
+    setUser(nickname);
+  };
+
+  const handleSubmit = async (d) => {
     const spot = findEmptySpot(notes, wallW, wallH);
     if (spot.w !== wallW) setWallW(spot.w);
     if (spot.h !== wallH) setWallH(spot.h);
-    const id = Math.max(0, ...notes.map(n => n.id)) + 1;
-    const handle = user ? `@${user}` : '@나';
-    setNotes(prev => [...prev, {
-      id, liked: false,
-      name: d.name.trim(), category: d.category,
-      years: '신규', rating: d.rating || 0,
-      hue: 26 + Math.floor(Math.random() * 12),
-      img: WHISKY_IMGS[Math.floor(Math.random() * WHISKY_IMGS.length)],
-      nose:   d.nose.length   ? d.nose   : ['-'],
-      palate: d.palate.length ? d.palate : ['-'],
-      finish: d.finish.length ? d.finish : ['-'],
-      handle, likes: 0,
-      x: spot.x, y: spot.y, rot: Math.random() * 4 - 2, mine: true,
-    }]);
+
+    const imgPool = WHISKY_IMGS;
+    const randomImg = imgPool[Math.floor(Math.random() * imgPool.length)];
+    if (!d.img) d.img = randomImg;
+
+    try {
+      const newNote = await api.createNote(d, spot.x, spot.y);
+      setNotes(prev => [...prev, { ...newNote, rot: Math.random() * 4 - 2 }]);
+    } catch (err) {
+      console.error('노트 작성 실패:', err.message);
+    }
     setShowWrite(false);
     setTab('feed');
     setFilter('전체');
     setQuery('');
   };
 
-  const handleDelete = useCallback((id) => {
-    setNotes(prev => prev.filter(n => n.id !== id));
+  const handleDelete = useCallback(async (id) => {
+    try {
+      await api.deleteNote(id);
+      setNotes(prev => prev.filter(n => n.id !== id));
+      setActiveId(null);
+    } catch (err) {
+      console.error('삭제 실패:', err.message);
+    }
   }, []);
 
   const handleLogout = () => {
+    localStorage.removeItem('neat-user');
     setUser(null);
+    setNotes([]);
     setTab('feed');
   };
 
   const q = query.trim().toLowerCase();
   const filtered = notes.filter(n => {
-    if (tab === 'mine') {
-      const isOwn = n.mine || (user && n.handle === `@${user}`);
-      if (!isOwn) return false;
-    }
+    if (tab === 'mine' && n.handle !== `@${user}`) return false;
     if (filter !== '전체' && n.category !== filter) return false;
     if (q && !n.name.toLowerCase().includes(q)) return false;
     return true;
@@ -141,7 +172,7 @@ export default function App() {
   const active = notes.find(n => n.id === activeId) ?? null;
 
   if (!user) {
-    return <LoginScreen onLogin={(nick) => setUser(nick)} />;
+    return <LoginScreen onLogin={handleLogin} />;
   }
 
   return (
@@ -155,7 +186,7 @@ export default function App() {
             <NoteCard key={n.id} note={n} onClick={openNote} onLike={toggleLike} />
           ))}
         </div>
-        {filtered.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <div className="empty">
             <svg width="72" height="86" viewBox="0 0 72 86" fill="none" stroke="#C9892E" strokeWidth="2">
               <path d="M14 8h44l-6 46a8 8 0 0 1-8 7H28a8 8 0 0 1-8-7L14 8Z"/>
@@ -164,6 +195,11 @@ export default function App() {
               <path d="M36 68v10M24 78h24" strokeOpacity=".7"/>
             </svg>
             <div className="emsg">첫 번째 테이스팅 노트를 공유해보세요</div>
+          </div>
+        )}
+        {loading && (
+          <div className="empty">
+            <div className="emsg">노트를 불러오는 중...</div>
           </div>
         )}
       </div>
