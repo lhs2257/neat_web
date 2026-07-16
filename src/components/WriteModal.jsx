@@ -28,8 +28,10 @@ function TagInput({ label, tags, input, onInput, onAdd, onRemove, onKeyDown }) {
 function StarPicker({ rating, onChange }) {
   const label = rating === 0 ? '별점 없음' : `${rating.toFixed(1)}점`;
 
-  const handleClick = (i, side) => {
-    const next = side === 'l' ? i - 0.5 : i;
+  const handleClick = (e, i) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const half = (e.clientX - rect.left) < rect.width / 2;
+    const next = half ? i - 0.5 : i;
     onChange(rating === next ? 0 : next);
   };
 
@@ -40,10 +42,10 @@ function StarPicker({ rating, onChange }) {
         {[1, 2, 3, 4, 5].map(i => {
           const cls = rating >= i ? 'full' : rating >= i - 0.5 ? 'half' : 'empty';
           return (
-            <span key={i} className={`star ${cls}`}>
+            <span key={i} className={`star ${cls}`}
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={e => handleClick(e, i)}>
               ★
-              <button className="sh l" onClick={() => handleClick(i, 'l')} />
-              <button className="sh r" onClick={() => handleClick(i, 'r')} />
             </span>
           );
         })}
@@ -116,13 +118,12 @@ export default function WriteModal({ onClose, onSubmit }) {
 
           <div className="field">
             <label>사진 업로드 (선택)</label>
-            <div className="dz" onClick={() => document.getElementById('img-upload').click()}
-              style={{ cursor: 'pointer' }}>
+            <label htmlFor="img-upload" className="dz" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
               {d.img
                 ? <img src={d.img} alt="미리보기" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
                 : <><div className="dzi">&#8593;</div>이미지를 클릭해 업로드</>
               }
-            </div>
+            </label>
             <input
               id="img-upload"
               type="file"
