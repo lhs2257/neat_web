@@ -116,10 +116,26 @@ export default function WriteModal({ onClose, onSubmit }) {
 
           <div className="field">
             <label>사진 업로드 (선택)</label>
-            <div className="dz">
-              <div className="dzi">⬆</div>
-              이미지를 끌어다 놓거나 클릭해 업로드
+            <div className="dz" onClick={() => document.getElementById('img-upload').click()}
+              style={{ cursor: 'pointer' }}>
+              {d.img
+                ? <img src={d.img} alt="미리보기" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+                : <><div className="dzi">&#8593;</div>이미지를 클릭해 업로드</>
+              }
             </div>
+            <input
+              id="img-upload"
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => patch({ img: ev.target.result });
+                reader.readAsDataURL(file);
+              }}
+            />
           </div>
         </div>
 
