@@ -28,24 +28,27 @@ function TagInput({ label, tags, input, onInput, onAdd, onRemove, onKeyDown }) {
 function StarPicker({ rating, onChange }) {
   const label = rating === 0 ? '별점 없음' : `${rating.toFixed(1)}점`;
 
-  const handleClick = (e, i) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const half = (e.clientX - rect.left) < rect.width / 2;
-    const next = half ? i - 0.5 : i;
-    onChange(rating === next ? 0 : next);
-  };
-
   return (
     <div className="field">
       <label>별점 · {label}</label>
       <div className="starpick">
         {[1, 2, 3, 4, 5].map(i => {
-          const cls = rating >= i ? 'full' : rating >= i - 0.5 ? 'half' : 'empty';
+          const fullCls = rating >= i ? 'full' : 'empty';
+          const halfCls = rating >= i - 0.5 && rating < i ? 'full' : 'empty';
           return (
-            <span key={i} className={`star ${cls}`}
-              style={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={e => handleClick(e, i)}>
-              ★
+            <span key={i} style={{ display: 'inline-flex' }}>
+              <button type="button"
+                style={{ background: 'none', border: 'none', padding: '0 1px', fontSize: 28, cursor: 'pointer',
+                  color: halfCls === 'full' || fullCls === 'full' ? 'var(--accent)' : '#5a4b3d' }}
+                onClick={() => onChange(rating === i - 0.5 ? 0 : i - 0.5)}>
+                &#9734;
+              </button>
+              <button type="button"
+                style={{ background: 'none', border: 'none', padding: '0 1px', fontSize: 28, cursor: 'pointer',
+                  color: fullCls === 'full' ? 'var(--accent)' : '#5a4b3d' }}
+                onClick={() => onChange(rating === i ? 0 : i)}>
+                &#9733;
+              </button>
             </span>
           );
         })}
